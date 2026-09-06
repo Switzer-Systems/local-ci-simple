@@ -81,13 +81,19 @@ jobs:
       - name: Run actionlint
         run: actionlint -shellcheck="$(command -v shellcheck)"
 
-      - name: Run zizmor
-        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
-        with:
-          version: '1.29.0'
-          collect: workflows
-          persona: regular
-          online-audits: false
-          advanced-security: false
-          annotations: true
-          token: ''
+      - name: Run zizmor offline
+        shell: bash
+        env:
+          ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor@sha256:863026d54f91271b10b60b67ad8054cb37120167e162482597db102b3026a284
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --network none \
+            --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/repo,readonly" \
+            "$ZIZMOR_IMAGE" \
+            --offline \
+            --strict-collection \
+            --collect=workflows \
+            --persona=regular \
+            --format=github \
+            /repo

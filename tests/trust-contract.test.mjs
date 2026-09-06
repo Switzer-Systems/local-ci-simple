@@ -84,15 +84,20 @@ test('hosted contract CI is pinned and runs the focused deterministic security c
   assert.match(workflow, /SHELLCHECK_SHA256: '[0-9a-f]{64}'/);
   assert.match(workflow, /shellcheck --shell=bash scripts\/preflight-github\.sh/);
   assert.match(workflow, /actionlint -shellcheck=/);
-  assert.match(workflow, /zizmorcore\/zizmor-action@[0-9a-f]{40}/);
-  assert.match(workflow, /version: '1\.29\.0'/);
-  assert.match(workflow, /online-audits: false/);
-  assert.match(workflow, /advanced-security: false/);
-  assert.match(workflow, /token: ''/);
+  assert.match(workflow, /ghcr\.io\/zizmorcore\/zizmor@sha256:[0-9a-f]{64}/);
+  assert.match(workflow, /--network none/);
+  assert.match(workflow, /dst=\/repo,readonly/);
+  assert.match(workflow, /--offline/);
+  assert.match(workflow, /--strict-collection/);
+  assert.match(workflow, /--collect=workflows/);
+  assert.match(workflow, /--persona=regular/);
+  assert.match(workflow, /--format=github/);
+  assert.doesNotMatch(workflow, /zizmorcore\/zizmor-action@/);
+  assert.doesNotMatch(workflow, /GH_TOKEN|GITHUB_TOKEN|ZIZMOR_GITHUB_TOKEN/);
   assert.doesNotMatch(workflow, /pull_request_target/);
 
   const uses = [...workflow.matchAll(/^\s*uses:\s*([^\s#]+)/gm)].map((match) => match[1]);
-  assert.ok(uses.length >= 3, 'contract workflow should have pinned checkout, setup-node, and zizmor actions');
+  assert.equal(uses.length, 2, 'contract workflow should only use pinned checkout and setup-node actions');
   for (const use of uses) assert.match(use, /@[0-9a-f]{40}$/, `action must be pinned to an exact SHA: ${use}`);
 });
 
@@ -106,6 +111,7 @@ test('trust contract fixes exact repo/workflow identity and forbids persistent p
   assert.match(contract, /actionlint `v1\.7\.12`/);
   assert.match(contract, /ShellCheck `v0\.11\.0`/);
   assert.match(contract, /zizmor `v1\.29\.0`/);
+  assert.match(contract, /receives no GitHub token or other credentials/i);
   assert.match(contract, /disposable canary/i);
   assert.match(contract, /Never reuse the Pure Linguistics runner group or a persistent trusted runner/i);
   assert.match(contract, /Single-owner reviewer caveat/);

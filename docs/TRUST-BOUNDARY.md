@@ -55,9 +55,9 @@ The required hosted `contract` job is the repository's only merge status gate. I
 - `bash -n` for the preflight;
 - ShellCheck `v0.11.0`, downloaded from the official release and verified by pinned SHA-256;
 - actionlint `v1.7.12`, downloaded from the official release and verified by pinned SHA-256;
-- zizmor `v1.29.0` through the official zizmor action pinned to an exact commit SHA, with online audits and token use disabled.
+- zizmor `v1.29.0` in its official container image pinned to digest `sha256:863026d54f91271b10b60b67ad8054cb37120167e162482597db102b3026a284`, run with `--offline`, Docker networking disabled, and the repository mounted read-only.
 
-The hosted gate may inspect repository code. It must not be confused with the credential-free trusted self-hosted acquisition canary.
+The zizmor container receives no GitHub token or other credentials. The hosted gate may inspect repository code. It must not be confused with the credential-free trusted self-hosted acquisition canary.
 
 ## Negative workflow
 
