@@ -62,6 +62,11 @@ test('CODEOWNERS covers the entire security sandbox', async () => {
   assert.match(codeowners, /^\* @wswitzer$/m);
 });
 
+test('actionlint knows the intentional custom self-hosted runner label', async () => {
+  const config = await read('.github/actionlint.yaml');
+  assert.match(config, /^self-hosted-runner:\n  labels:\n    - local-ci-simple-canary$/m);
+});
+
 test('hosted contract CI is pinned and runs the focused deterministic security checks', async () => {
   const workflow = await read(contractPath);
 
