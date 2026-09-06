@@ -1,0 +1,20 @@
+name: Unauthorized local CI acquisition probe
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  should-never-acquire-selected-group:
+    runs-on:
+      group: local-ci-simple-canary
+      labels: [self-hosted, Linux, ARM64, local-ci-simple-canary]
+    timeout-minutes: 1
+    steps:
+      - name: Unauthorized marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'SECURITY FAILURE: unauthorized workflow acquired the selected runner group'
+          exit 97

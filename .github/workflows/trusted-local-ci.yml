@@ -1,0 +1,45 @@
+name: Trusted local CI acquisition canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact current main SHA expected by the operator
+        required: true
+        type: string
+      confirmation:
+        description: Type RUN-DISPOSABLE-CANARY to authorize this synthetic probe
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: local-ci-simple-trusted-canary
+  cancel-in-progress: true
+
+jobs:
+  authorize:
+    if: >-
+      github.repository == 'Switzer-Systems/local-ci-simple' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'wswitzer' &&
+      github.triggering_actor == 'wswitzer' &&
+      inputs.confirmation == 'RUN-DISPOSABLE-CANARY' &&
+      inputs.expected_sha == github.sha
+    runs-on:
+      group: local-ci-simple-canary
+      labels: [self-hosted, Linux, ARM64, local-ci-simple-canary]
+    timeout-minutes: 2
+    steps:
+      - name: Record code-free acquisition evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'repository=%s\n' "$GITHUB_REPOSITORY"
+          printf 'ref=%s\n' "$GITHUB_REF"
+          printf 'sha=%s\n' "$GITHUB_SHA"
+          printf 'actor=%s\n' "$GITHUB_ACTOR"
+          printf 'workflow_ref=%s\n' "$GITHUB_WORKFLOW_REF"
+          printf 'runner=%s\n' "$RUNNER_NAME"
