@@ -1,7 +1,3 @@
-# Trust-boundary files require owner review before protected-main landing.
-/.github/CODEOWNERS @wswitzer
-/.github/workflows/trusted-local-ci.yml @wswitzer
-/docs/TRUST-BOUNDARY.md @wswitzer
-/docs/ACTIVATION.md @wswitzer
-/scripts/preflight-github.sh @wswitzer
-/tests/trust-contract.test.mjs @wswitzer
+# This tiny repository is entirely a trust-boundary/security experiment.
+# Once a distinct eligible reviewer exists, require CODEOWNER approval on protected main.
+* @wswitzer

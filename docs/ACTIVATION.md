@@ -4,10 +4,13 @@ This runbook separates repository preparation from live runner registration. Rep
 
 ## Phase A — repository preparation
 
-1. Merge the reviewed Issue #1 repository changes to `main`.
-2. Configure public-repository `main` protection.
-3. Keep CODEOWNERS coverage in place. If there is only one eligible reviewer and that reviewer authored the PR, do not enable an unsatisfiable required-code-owner approval rule; record the reviewer-topology gap instead.
-4. Run `scripts/preflight-github.sh --branch-only` and require PASS.
+1. While PR #2 is still open, configure **classic branch protection** for public-repository `main`: require pull requests, require the `contract` status check, enforce the rule for administrators, configure zero bypass allowances, and disallow force pushes and branch deletion.
+2. Keep CODEOWNERS coverage in place. If there is only one eligible reviewer and that reviewer authored the PR, do not enable an unsatisfiable required-code-owner approval rule; record the reviewer-topology gap instead.
+3. Read back the live settings and require them to match the approved contract before merge.
+4. Merge the independently reviewed Issue #1 repository changes through the protected `main` path.
+5. Run `scripts/preflight-github.sh --branch-only` from the merged `main` revision and require PASS.
+
+The sandbox uses classic branch protection rather than a repository ruleset so the checked-in preflight can validate the exact live protection object deterministically.
 
 ## Phase B — dedicated runner-group preparation
 
@@ -53,7 +56,7 @@ Record exact runner ID, name, version, labels, group ID, online/idle state, and 
    - `expected_sha=<exact current main SHA>`
    - `confirmation=RUN-DISPOSABLE-CANARY`
 3. Require the authorize job to be assigned to the disposable runner.
-4. Record run ID, job ID, runner ID, runner-group ID, workflow ref, head SHA, start/end time, conclusion, and step list.
+4. Record run ID, job ID, runner ID, runner-group ID, workflow ref, workflow SHA, head SHA, actor ID, start/end time, conclusion, and step list.
 5. Confirm no checkout/action download, secret, OIDC, target code, or external credential use occurred.
 
 Expected result: success on the disposable runner.

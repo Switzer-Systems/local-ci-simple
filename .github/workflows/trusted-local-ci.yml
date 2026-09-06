@@ -24,7 +24,10 @@ jobs:
       github.repository == 'Switzer-Systems/local-ci-simple' &&
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
+      github.workflow_ref == 'Switzer-Systems/local-ci-simple/.github/workflows/trusted-local-ci.yml@refs/heads/main' &&
+      github.workflow_sha == github.sha &&
       github.actor == 'wswitzer' &&
+      github.actor_id == '112133527' &&
       github.triggering_actor == 'wswitzer' &&
       inputs.confirmation == 'RUN-DISPOSABLE-CANARY' &&
       inputs.expected_sha == github.sha
@@ -41,5 +44,7 @@ jobs:
           printf 'ref=%s\n' "$GITHUB_REF"
           printf 'sha=%s\n' "$GITHUB_SHA"
           printf 'actor=%s\n' "$GITHUB_ACTOR"
+          printf 'actor_id=%s\n' "$GITHUB_ACTOR_ID"
           printf 'workflow_ref=%s\n' "$GITHUB_WORKFLOW_REF"
+          printf 'workflow_sha=%s\n' "$GITHUB_WORKFLOW_SHA"
           printf 'runner=%s\n' "$RUNNER_NAME"

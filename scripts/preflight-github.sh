@@ -31,13 +31,20 @@ protected="$(gh api "repos/${repo}/branches/${branch}" --jq '.protected')"
 [[ "$protected" == "true" ]] || fail "${branch} is not protected"
 pass "${branch} reports protected=true"
 
-protection_json="$(gh api "repos/${repo}/branches/${branch}/protection")" || fail "cannot read ${branch} protection"
+protection_json="$(gh api "repos/${repo}/branches/${branch}/protection")" || fail "cannot read ${branch} classic branch protection"
 
 requires_pr="$(jq -r 'has("required_pull_request_reviews") and (.required_pull_request_reviews != null)' <<<"$protection_json")"
 [[ "$requires_pr" == "true" ]] || fail "pull-request review protection is not configured"
 
 enforce_admins="$(jq -r '.enforce_admins.enabled // false' <<<"$protection_json")"
 [[ "$enforce_admins" == "true" ]] || fail "administrator enforcement is not enabled"
+
+bypass_count="$(jq '[
+  (.required_pull_request_reviews.bypass_pull_request_allowances.users // [])[],
+  (.required_pull_request_reviews.bypass_pull_request_allowances.teams // [])[],
+  (.required_pull_request_reviews.bypass_pull_request_allowances.apps // [])[]
+] | length' <<<"$protection_json")"
+[[ "$bypass_count" == "0" ]] || fail "pull-request protection has ${bypass_count} bypass allowance(s); expected zero"
 
 allow_force_pushes="$(jq -r '.allow_force_pushes.enabled // false' <<<"$protection_json")"
 [[ "$allow_force_pushes" == "false" ]] || fail "force pushes are allowed"
@@ -55,7 +62,7 @@ fi
 status_contexts="$(jq -r '(.required_status_checks.contexts // []) | join(",")' <<<"$protection_json")"
 [[ ",$status_contexts," == *",contract,"* ]] || fail "required status checks do not include contract"
 
-pass "branch protection requires PR flow, enforces admins, blocks force-push/delete, and requires contract status"
+pass "branch protection requires PR flow, has zero bypass allowances, enforces admins, blocks force-push/delete, and requires contract status"
 
 if [[ "$mode" == "--branch-only" ]]; then
   exit 0
