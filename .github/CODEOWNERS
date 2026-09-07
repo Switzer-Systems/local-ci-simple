@@ -1,3 +1,4 @@
 # This tiny repository is entirely a trust-boundary/security experiment.
-# Once a distinct eligible reviewer exists, require CODEOWNER approval on protected main.
+# In the bootstrap sandbox CODEOWNERS is metadata only; branch preflight proves a single-writer owner trust root.
+# Future Pure Linguistics commissioning must add a distinct eligible reviewer and require CODEOWNER approval.
 * @wswitzer

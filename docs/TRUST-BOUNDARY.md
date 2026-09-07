@@ -2,10 +2,11 @@
 
 ## Decision
 
-This sandbox tests the narrow GitHub-native boundary supported by the Pure Linguistics Issue #244 scheduler A/B evidence:
+This sandbox tests a narrow GitHub-native scheduler boundary under an explicit **single-writer owner-controlled trust root**:
 
 ```text
 protected main
+  -> only merge-capable collaborator: @wswitzer
   -> organization runner group restricted to this repository
   -> selected workflow: .github/workflows/trusted-local-ci.yml@refs/heads/main
   -> disposable credential-free runner
@@ -15,6 +16,8 @@ The selected-workflow branch ref and target revision are different controls. The
 
 Runner labels are routing metadata only.
 
+This sandbox does **not** claim two-person or CODEOWNER approval enforcement. The reduced bootstrap claim is valid only while privileged live readback proves `@wswitzer` is the only merge-capable collaborator and branch-protection bypass allowances are empty. The future Pure Linguistics cutover must add a distinct eligible reviewer/team and enforce CODEOWNER approval before treating reviewer governance as proven.
+
 ## Why a public sandbox
 
 The production Pure Linguistics repository is private and cannot exercise the intended protected-private-`main` control until the organization plan supports it. This repository is public so the branch-protection portion can be proven without waiting for that upgrade.
@@ -23,10 +26,12 @@ A public repository is also a more hostile environment for a self-hosted runner.
 
 ## Trusted workflow contract
 
-`.github/workflows/trusted-local-ci.yml` must remain:
+`.github/workflows/trusted-local-ci.yml` must remain the exact audited fixture enforced by `tests/trust-contract.test.mjs`:
 
 - `workflow_dispatch` only;
+- exactly the two required operator inputs;
 - `permissions: {}`;
+- exactly one `authorize` job;
 - exact repository `Switzer-Systems/local-ci-simple`;
 - exact ref `refs/heads/main`;
 - exact workflow ref `Switzer-Systems/local-ci-simple/.github/workflows/trusted-local-ci.yml@refs/heads/main`;
@@ -37,6 +42,8 @@ A public repository is also a more hostile environment for a self-hosted runner.
 - exact expected SHA equal to `github.sha`;
 - selected group `local-ci-simple-canary`;
 - selected labels `self-hosted`, `Linux`, `ARM64`, `local-ci-simple-canary`;
+- exactly one metadata-printing shell step;
+- no additional `run` or `uses` surface;
 - no `pull_request_target`;
 - no checkout;
 - no third-party/repository actions;
@@ -71,14 +78,19 @@ Before any disposable runner registration, live repository settings must prove a
 
 1. `main` is protected using the sandbox's approved classic branch-protection contract.
 2. Changes to `main` require a pull request.
-3. Code-owner review is required for the protected trust-boundary paths when the repository's reviewer topology can satisfy that rule.
-4. Administrator enforcement is enabled and pull-request bypass allowances are exactly empty.
-5. Force pushes and branch deletion are disabled.
-6. The required `contract` status check is preserved.
+3. Administrator enforcement is enabled and pull-request bypass allowances are exactly empty.
+4. Force pushes and branch deletion are disabled.
+5. The required `contract` status check is preserved.
+6. `@wswitzer` is the only merge-capable collaborator returned by GitHub after accounting for direct, team, organization-default, and organization-owner access.
+7. CODEOWNERS remains metadata only in this bootstrap sandbox; no CODEOWNER-enforcement claim is made.
 
-### Single-owner reviewer caveat
+### Single-writer owner-controlled trust root
 
-At bootstrap, `@wswitzer` is both the commit author and the only configured code owner. GitHub does not allow a pull-request author to approve their own PR. Therefore **do not enable an unsatisfiable code-owner-approval requirement until a distinct eligible reviewer/team exists**. Until then, the sandbox may prove PR-only protection, required checks, and no-bypass semantics, while CODEOWNERS documents the intended protected paths. The future Pure Linguistics cutover must resolve this reviewer topology before claiming code-owner-review enforcement.
+GitHub does not allow a pull-request author to approve their own PR, and `@wswitzer` is currently both the PR author and sole configured code owner. Instead of pretending CODEOWNER enforcement exists, this sandbox deliberately narrows its governance claim.
+
+The checked-in preflight must fail closed unless `@wswitzer` is the only collaborator with push, maintain, or admin capability and there are zero PR-bypass allowances. If any other merge-capable principal appears, the sandbox trust root is invalid and runner commissioning is blocked.
+
+This reduced claim proves the GitHub scheduler boundary only under a single trusted owner. It does not prove multi-party review governance. Pure Linguistics must resolve that gap with a distinct eligible reviewer/team and required CODEOWNER approval before persistent runner commissioning.
 
 ## Expected runner-group contract
 
@@ -99,12 +111,16 @@ For this public sandbox only:
 
 Because the repository is public, `allows_public_repositories` must be true for this **dedicated sandbox group only**. Never reuse the Pure Linguistics runner group or a persistent trusted runner for this experiment.
 
+The preflight must query GitHub's repository-visible runner-group view and require `local-ci-simple-canary` to be the **only runner group visible to this public repository**. This closes the possibility that a broader or inherited group could expose some other self-hosted runner surface.
+
 ## Fail-closed conditions
 
 Do not register the disposable runner if any of these are false or unknown:
 
 - repository ID is exactly `1358786256`;
 - `main` protection satisfies the approved sandbox configuration with zero bypass allowances;
+- `@wswitzer` is the only merge-capable collaborator;
+- `local-ci-simple-canary` is the only runner group GitHub reports as usable by this repository;
 - runner group visibility is `selected`;
 - selected repository set is exactly this repository;
 - public access is enabled only because this dedicated group targets this public sandbox;
@@ -115,6 +131,6 @@ Do not register the disposable runner if any of these are false or unknown:
 
 ## What this can prove before Team
 
-A successful canary can prove that GitHub's selected-workflow scheduler lets the protected-main trusted workflow acquire a runner while an unauthorized workflow targeting the same group/labels cannot.
+A successful canary can prove that, under the explicitly reduced single-writer owner-controlled trust root, GitHub's selected-workflow scheduler lets the protected-main trusted workflow acquire a runner while an unauthorized workflow targeting the same group/labels cannot.
 
-It cannot prove that Pure Linguistics private `main` protection is actually enforced. After Team is enabled, PL still needs live readback of its private branch/ruleset protection and its own runner-group configuration before any persistent PL runner assignment.
+It cannot prove two-person/CODEOWNER governance, and it cannot prove that Pure Linguistics private `main` protection is actually enforced. After Team is enabled, PL still needs live readback of its private branch/ruleset protection, enforced reviewer governance, and its own runner-group configuration before any persistent PL runner assignment.

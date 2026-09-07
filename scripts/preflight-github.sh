@@ -4,6 +4,7 @@ set -euo pipefail
 repo="Switzer-Systems/local-ci-simple"
 repo_id="1358786256"
 branch="main"
+owner_login="wswitzer"
 group_name="local-ci-simple-canary"
 selected_workflow="Switzer-Systems/local-ci-simple/.github/workflows/trusted-local-ci.yml@refs/heads/main"
 mode="${1:-full}"
@@ -53,25 +54,59 @@ allow_deletions="$(jq -r '.allow_deletions.enabled // false' <<<"$protection_jso
 [[ "$allow_deletions" == "false" ]] || fail "branch deletion is allowed"
 
 code_owner_reviews="$(jq -r '.required_pull_request_reviews.require_code_owner_reviews // false' <<<"$protection_json")"
-if [[ "$code_owner_reviews" == "true" ]]; then
-  pass "code-owner review is required"
-else
-  printf 'NOTE: code-owner review is not required. This is acceptable only while the documented single-owner reviewer-topology gap remains unresolved.\n'
-fi
+[[ "$code_owner_reviews" == "false" ]] || fail "sandbox single-writer contract expects code-owner review disabled until a distinct reviewer exists"
 
 status_contexts="$(jq -r '(.required_status_checks.contexts // []) | join(",")' <<<"$protection_json")"
 [[ ",$status_contexts," == *",contract,"* ]] || fail "required status checks do not include contract"
 
-pass "branch protection requires PR flow, has zero bypass allowances, enforces admins, blocks force-push/delete, and requires contract status"
+collaborators_json="$(gh api --paginate "repos/${repo}/collaborators?affiliation=all&per_page=100" --slurp)" \
+  || fail "cannot enumerate repository collaborators"
+owner_merge_capable_count="$(jq -r --arg owner "$owner_login" '[
+  .[][] |
+  select(.login == $owner) |
+  select((.permissions.admin // false) or (.permissions.maintain // false) or (.permissions.push // false))
+] | length' <<<"$collaborators_json")"
+[[ "$owner_merge_capable_count" == "1" ]] \
+  || fail "expected exactly one merge-capable ${owner_login} collaborator entry, found ${owner_merge_capable_count}"
+
+other_merge_capable_count="$(jq -r --arg owner "$owner_login" '[
+  .[][] |
+  select(.login != $owner) |
+  select((.permissions.admin // false) or (.permissions.maintain // false) or (.permissions.push // false))
+] | length' <<<"$collaborators_json")"
+if [[ "$other_merge_capable_count" != "0" ]]; then
+  other_merge_capable_logins="$(jq -r --arg owner "$owner_login" '[
+    .[][] |
+    select(.login != $owner) |
+    select((.permissions.admin // false) or (.permissions.maintain // false) or (.permissions.push // false)) |
+    .login
+  ] | unique | join(",")' <<<"$collaborators_json")"
+  fail "single-writer trust root violated by merge-capable collaborator(s): ${other_merge_capable_logins}"
+fi
+
+pass "branch protection and single-writer owner-controlled trust root are exact"
 
 if [[ "$mode" == "--branch-only" ]]; then
   exit 0
 fi
 [[ "$mode" == "full" ]] || fail "usage: $0 [--branch-only]"
 
-groups_json="$(gh api "orgs/Switzer-Systems/actions/runner-groups")" || fail "cannot read organization runner groups; auth needs Self-hosted runners: read/admin access"
-group_id="$(jq -r --arg name "$group_name" '.runner_groups[] | select(.name == $name) | .id' <<<"$groups_json")"
-[[ -n "$group_id" && "$group_id" != "null" ]] || fail "runner group ${group_name} not found"
+visible_groups_json="$(gh api "orgs/Switzer-Systems/actions/runner-groups?visible_to_repository=local-ci-simple&per_page=100")" \
+  || fail "cannot enumerate runner groups visible to this repository; auth needs Self-hosted runners: read/admin access"
+visible_group_count="$(jq -r '.total_count' <<<"$visible_groups_json")"
+returned_visible_group_count="$(jq -r '.runner_groups | length' <<<"$visible_groups_json")"
+[[ "$visible_group_count" == "$returned_visible_group_count" ]] \
+  || fail "runner-group visibility result is paginated/truncated (${returned_visible_group_count}/${visible_group_count}); refuse incomplete proof"
+[[ "$visible_group_count" == "1" ]] || {
+  visible_group_names="$(jq -r '[.runner_groups[].name] | join(",")' <<<"$visible_groups_json")"
+  fail "repository can use ${visible_group_count} runner groups (${visible_group_names}); expected only ${group_name}"
+}
+
+actual_visible_group_name="$(jq -r '.runner_groups[0].name' <<<"$visible_groups_json")"
+[[ "$actual_visible_group_name" == "$group_name" ]] \
+  || fail "only visible runner group is ${actual_visible_group_name}, expected ${group_name}"
+group_id="$(jq -r '.runner_groups[0].id' <<<"$visible_groups_json")"
+[[ -n "$group_id" && "$group_id" != "null" ]] || fail "runner group ${group_name} has no id"
 
 group_json="$(gh api "orgs/Switzer-Systems/actions/runner-groups/${group_id}")"
 [[ "$(jq -r '.visibility' <<<"$group_json")" == "selected" ]] || fail "runner group visibility is not selected"
@@ -93,5 +128,5 @@ runners_json="$(gh api "orgs/Switzer-Systems/actions/runner-groups/${group_id}/r
 runner_count="$(jq '.total_count' <<<"$runners_json")"
 [[ "$runner_count" == "0" ]] || fail "runner group already contains ${runner_count} runner(s); pre-registration state must be zero"
 
-pass "runner group is selected-repo + selected-workflow exact and contains zero runners"
+pass "repository can reach only the exact selected-repo + selected-workflow group, which contains zero runners"
 printf 'READY: repository and runner-group preconditions are satisfied for an explicitly approved disposable runner registration.\n'

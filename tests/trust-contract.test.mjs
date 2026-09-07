@@ -8,39 +8,65 @@ const trustedPath = '.github/workflows/trusted-local-ci.yml';
 const unauthorizedPath = '.github/workflows/unauthorized-local-ci-probe.yml';
 const contractPath = '.github/workflows/contract.yml';
 
-function trustedJobBlock(workflow) {
-  const match = workflow.match(/\n  authorize:\n([\s\S]*)$/);
-  assert.ok(match, 'trusted workflow must contain authorize job');
-  return match[1];
-}
+const expectedTrustedWorkflow = String.raw`name: Trusted local CI acquisition canary
 
-test('trusted canary is manual-only, read-only/code-free, and exact-identity gated', async () => {
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact current main SHA expected by the operator
+        required: true
+        type: string
+      confirmation:
+        description: Type RUN-DISPOSABLE-CANARY to authorize this synthetic probe
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: local-ci-simple-trusted-canary
+  cancel-in-progress: true
+
+jobs:
+  authorize:
+    if: >-
+      github.repository == 'Switzer-Systems/local-ci-simple' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      github.workflow_ref == 'Switzer-Systems/local-ci-simple/.github/workflows/trusted-local-ci.yml@refs/heads/main' &&
+      github.workflow_sha == github.sha &&
+      github.actor == 'wswitzer' &&
+      github.actor_id == '112133527' &&
+      github.triggering_actor == 'wswitzer' &&
+      inputs.confirmation == 'RUN-DISPOSABLE-CANARY' &&
+      inputs.expected_sha == github.sha
+    runs-on:
+      group: local-ci-simple-canary
+      labels: [self-hosted, Linux, ARM64, local-ci-simple-canary]
+    timeout-minutes: 2
+    steps:
+      - name: Record code-free acquisition evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'repository=%s\n' "$GITHUB_REPOSITORY"
+          printf 'ref=%s\n' "$GITHUB_REF"
+          printf 'sha=%s\n' "$GITHUB_SHA"
+          printf 'actor=%s\n' "$GITHUB_ACTOR"
+          printf 'actor_id=%s\n' "$GITHUB_ACTOR_ID"
+          printf 'workflow_ref=%s\n' "$GITHUB_WORKFLOW_REF"
+          printf 'workflow_sha=%s\n' "$GITHUB_WORKFLOW_SHA"
+          printf 'runner=%s\n' "$RUNNER_NAME"
+`;
+
+test('trusted canary exactly matches the audited manual-only, code-free fixture', async () => {
   const workflow = await read(trustedPath);
-  const job = trustedJobBlock(workflow);
-
-  assert.match(workflow, /^on:\n  workflow_dispatch:/m);
-  assert.doesNotMatch(workflow, /^\s{2}(pull_request|push|schedule|workflow_call|repository_dispatch):/m);
-  assert.doesNotMatch(workflow, /pull_request_target/);
-  assert.match(workflow, /^permissions: \{\}$/m);
-
-  assert.match(job, /github\.repository == 'Switzer-Systems\/local-ci-simple'/);
-  assert.match(job, /github\.event_name == 'workflow_dispatch'/);
-  assert.match(job, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(job, /github\.workflow_ref == 'Switzer-Systems\/local-ci-simple\/\.github\/workflows\/trusted-local-ci\.yml@refs\/heads\/main'/);
-  assert.match(job, /github\.workflow_sha == github\.sha/);
-  assert.match(job, /github\.actor == 'wswitzer'/);
-  assert.match(job, /github\.actor_id == '112133527'/);
-  assert.match(job, /github\.triggering_actor == 'wswitzer'/);
-  assert.match(job, /inputs\.confirmation == 'RUN-DISPOSABLE-CANARY'/);
-  assert.match(job, /inputs\.expected_sha == github\.sha/);
-
-  assert.match(job, /group: local-ci-simple-canary/);
-  assert.match(job, /labels: \[self-hosted, Linux, ARM64, local-ci-simple-canary\]/);
-  assert.doesNotMatch(job, /\buses:/);
-  assert.doesNotMatch(job, /actions\/checkout/i);
-  assert.doesNotMatch(job, /secrets\./i);
-  assert.doesNotMatch(job, /id-token\s*:\s*write/i);
-  assert.doesNotMatch(job, /curl\s|wget\s|ssh\s|gh\s+api/i);
+  assert.equal(
+    workflow,
+    expectedTrustedWorkflow,
+    'trusted workflow changed outside the exact audited workflow_dispatch-only metadata canary fixture',
+  );
 });
 
 test('unauthorized probe deliberately targets identical group and labels without secrets', async () => {
@@ -60,6 +86,7 @@ test('unauthorized probe deliberately targets identical group and labels without
 test('CODEOWNERS covers the entire security sandbox', async () => {
   const codeowners = await read('.github/CODEOWNERS');
   assert.match(codeowners, /^\* @wswitzer$/m);
+  assert.match(codeowners, /single-writer owner trust root/i);
 });
 
 test('actionlint knows the intentional custom self-hosted runner label', async () => {
@@ -114,7 +141,8 @@ test('trust contract fixes exact repo/workflow identity and forbids persistent p
   assert.match(contract, /receives no GitHub token or other credentials/i);
   assert.match(contract, /disposable canary/i);
   assert.match(contract, /Never reuse the Pure Linguistics runner group or a persistent trusted runner/i);
-  assert.match(contract, /Single-owner reviewer caveat/);
+  assert.match(contract, /Single-writer owner-controlled trust root/);
+  assert.match(contract, /only runner group visible to this public repository/i);
 });
 
 test('activation protects main before merge and requires readback before registration', async () => {
@@ -123,15 +151,18 @@ test('activation protects main before merge and requires readback before registr
   const merge = activation.indexOf('Merge the independently reviewed Issue #1 repository changes');
   assert.ok(protect >= 0 && merge >= 0 && protect < merge, 'main protection must be configured before PR #2 is merged');
   assert.match(activation, /zero bypass allowances/i);
+  assert.match(activation, /only merge-capable collaborator/i);
+  assert.match(activation, /only runner group visible to this repository/i);
   assert.match(activation, /separate explicit owner approval for the exact registration operation/i);
   assert.match(activation, /preflight-github\.sh/);
   assert.match(activation, /zero sandbox runners/i);
   assert.match(activation, /Do not reuse `Default`, `plos-local-ci`, the canonical `local-ci-r1`, or `local-ci-r2`/);
 });
 
-test('preflight is read-only and checks branch, bypass, and exact runner-group state', async () => {
+test('preflight is read-only and closes collaborator and runner-group visibility gaps', async () => {
   const script = await read('scripts/preflight-github.sh');
   assert.match(script, /repo_id="1358786256"/);
+  assert.match(script, /owner_login="wswitzer"/);
   assert.match(script, /group_name="local-ci-simple-canary"/);
   assert.match(script, /selected_workflow="Switzer-Systems\/local-ci-simple\/\.github\/workflows\/trusted-local-ci\.yml@refs\/heads\/main"/);
   assert.match(script, /\.protected/);
@@ -139,6 +170,10 @@ test('preflight is read-only and checks branch, bypass, and exact runner-group s
   assert.match(script, /bypass_pull_request_allowances/);
   assert.match(script, /bypass_count.*0/s);
   assert.match(script, /required status checks do not include contract/);
+  assert.match(script, /collaborators\?affiliation=all&per_page=100/);
+  assert.match(script, /other_merge_capable_count.*0/s);
+  assert.match(script, /visible_to_repository=local-ci-simple&per_page=100/);
+  assert.match(script, /visible_group_count.*1/s);
   assert.match(script, /restricted_to_workflows/);
   assert.match(script, /runner_count.*0/s);
   assert.doesNotMatch(script, /gh\s+api\s+[^\n]*(--method|-X)\s+(POST|PUT|PATCH|DELETE)/i);

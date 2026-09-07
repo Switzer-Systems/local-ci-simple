@@ -5,10 +5,10 @@ This runbook separates repository preparation from live runner registration. Rep
 ## Phase A — repository preparation
 
 1. While PR #2 is still open, configure **classic branch protection** for public-repository `main`: require pull requests, require the `contract` status check, enforce the rule for administrators, configure zero bypass allowances, and disallow force pushes and branch deletion.
-2. Keep CODEOWNERS coverage in place. If there is only one eligible reviewer and that reviewer authored the PR, do not enable an unsatisfiable required-code-owner approval rule; record the reviewer-topology gap instead.
-3. Read back the live settings and require them to match the approved contract before merge.
+2. Operate this bootstrap sandbox under the explicitly reduced **single-writer owner-controlled trust root**. `@wswitzer` must be the only merge-capable collaborator; CODEOWNERS is metadata only until a distinct eligible reviewer exists. Do not claim CODEOWNER enforcement.
+3. Read back the live settings and run `scripts/preflight-github.sh --branch-only`. It must prove branch protection and that `@wswitzer` is the only merge-capable collaborator before merge.
 4. Merge the independently reviewed Issue #1 repository changes through the protected `main` path.
-5. Run `scripts/preflight-github.sh --branch-only` from the merged `main` revision and require PASS.
+5. Run `scripts/preflight-github.sh --branch-only` again from the merged `main` revision and require PASS.
 
 The sandbox uses classic branch protection rather than a repository ruleset so the checked-in preflight can validate the exact live protection object deterministically.
 
@@ -31,7 +31,7 @@ Run:
 ./scripts/preflight-github.sh
 ```
 
-The script is read-only. It must PASS before runner registration.
+The script is read-only. It must PASS before runner registration. In addition to validating the dedicated group itself, it queries GitHub's repository-visible runner-group view and requires `local-ci-simple-canary` to be the **only runner group visible to this repository**. Any additional visible/inherited group blocks commissioning.
 
 ## Phase C — disposable runner commissioning
 
